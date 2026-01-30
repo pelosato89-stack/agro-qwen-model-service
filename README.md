@@ -60,7 +60,11 @@ pip install -r requirements.txt
 gunicorn -c gunicorn.conf.py model_api:app
 ```
 
-El servicio estará disponible en `http://localhost:8001`
+**Nota:** 
+- Con `python model_api.py` el servicio usa puerto **8001** (desarrollo)
+- Con `gunicorn` el servicio usa puerto **8080** (producción)
+
+El servicio estará disponible en `http://localhost:8001` (dev) o `http://localhost:8080` (gunicorn)
 
 ## 🌐 Variables de Entorno
 

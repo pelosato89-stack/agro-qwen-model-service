@@ -16,6 +16,7 @@ mkdir -p "$MODEL_DIR"
 if [ ! -f "$MODEL_DIR/$MODEL_FILE" ]; then
     echo "⬇️  Descargando modelo (~1 GB)..."
     echo "⏱️  Esto puede tardar 5-15 minutos dependiendo de tu conexión"
+    echo "📝 Nota: Para producción, se recomienda verificar el checksum del archivo descargado"
     wget -q --show-progress -O "$MODEL_DIR/$MODEL_FILE" "$MODEL_URL"
     echo "✅ Descarga completa"
 else
