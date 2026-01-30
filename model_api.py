@@ -13,7 +13,7 @@ app = Flask(__name__)
 # Configuración
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = os.getenv(
-    "LOCAL_MODEL_PATH", str(BASE_DIR / "models/qwen2.5-3b-instruct-q4_k_m.gguf")
+    "LOCAL_MODEL_PATH", str(BASE_DIR / "models/qwen2.5-1.5b-instruct-q4_k_m.gguf")
 )
 N_CTX = int(os.getenv("N_CTX", "2048"))
 N_THREADS = int(os.getenv("N_THREADS", "1"))

@@ -18,16 +18,46 @@ pip install -r requirements.txt
 ```bash
 # Descargar modelo GGUF (si no lo tienes)
 mkdir -p models
-wget -O models/qwen2.5-3b-instruct-q4_k_m.gguf \
-  https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
+wget -O models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+  https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
 
 # Configurar variables de entorno
-export LOCAL_MODEL_PATH=./models/qwen2.5-3b-instruct-q4_k_m.gguf
+export LOCAL_MODEL_PATH=./models/qwen2.5-1.5b-instruct-q4_k_m.gguf
 export N_CTX=2048
 export N_THREADS=1
 
 # Ejecutar
 python model_api.py
+```
+
+## 🔧 Ejecución con Gunicorn (Producción)
+```bash
+# Opción 1: Usando el script de descarga automática
+./download_model.sh gunicorn -c gunicorn.conf.py model_api:app
+
+# Opción 2: Si ya tienes el modelo descargado
+gunicorn -c gunicorn.conf.py model_api:app
+```
+
+La configuración de Gunicorn incluye:
+- 1 worker (para no duplicar modelo en RAM)
+- Timeout de 60s (modelo 1.5B es rápido: 3-8s)
+- Pre-carga del modelo antes de fork
+- Reinicio automático cada 200 requests
+
+## 🐳 Ejecución con Docker
+```bash
+# Instalar dependencias y descargar modelo
+apt-get update && \
+apt-get install -y curl build-essential cmake && \
+rm -rf /var/lib/apt/lists/* && \
+mkdir -p models && \
+curl -L -o models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+  https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf && \
+pip install -r requirements.txt
+
+# Iniciar con Gunicorn
+gunicorn -c gunicorn.conf.py model_api:app
 ```
 
 El servicio estará disponible en `http://localhost:8001`
@@ -36,10 +66,10 @@ El servicio estará disponible en `http://localhost:8001`
 
 | Variable | Descripción | Valor por Defecto |
 |----------|-------------|-------------------|
-| `LOCAL_MODEL_PATH` | Ruta al archivo GGUF | `./models/qwen2.5-3b-instruct-q4_k_m.gguf` |
+| `LOCAL_MODEL_PATH` | Ruta al archivo GGUF | `./models/qwen2.5-1.5b-instruct-q4_k_m.gguf` |
 | `N_CTX` | Tamaño del contexto | `2048` |
 | `N_THREADS` | Número de threads CPU | `1` |
-| `PORT` | Puerto del servicio | `8001` |
+| `PORT` | Puerto del servicio | `8001` (dev) / `8080` (gunicorn) |
 
 ## 📡 Endpoints
 
@@ -93,13 +123,13 @@ Port: 8001
 ### Paso 3: Variables de Entorno
 Configurar en el panel de Leapcell:
 ```
-LOCAL_MODEL_PATH=/app/models/qwen2.5-3b-instruct-q4_k_m.gguf
+LOCAL_MODEL_PATH=/app/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
 N_CTX=2048
 N_THREADS=1
 ```
 
 ### Paso 4: Subir Modelo GGUF
-⚠️ **IMPORTANTE**: El modelo pesa 3-4 GB
+⚠️ **IMPORTANTE**: El modelo pesa ~1 GB
 
 Opciones:
 1. **Volumen persistente** (recomendado)
@@ -142,9 +172,9 @@ curl -X POST https://tu-servicio-1.leapcell.dev/chat \
 - Requests subsecuentes serán más rápidas si el contenedor está caliente
 
 ### Recursos
-- **RAM**: Mínimo 2 GB para Qwen 3B
+- **RAM**: Mínimo 1 GB para Qwen 1.5B
 - **CPU**: 1 core mínimo (más es mejor)
-- **Storage**: 4-5 GB para el modelo
+- **Storage**: 1-2 GB para el modelo
 
 ### Optimización
 - Usar modelo cuantizado (Q4_K_M es buena opción)
@@ -172,7 +202,7 @@ MODEL_API_URL=https://tu-servicio-1.leapcell.dev
 
 ### Error: "Out of memory"
 - Reducir `N_CTX`
-- Usar modelo más pequeño (1.5B en vez de 3B)
+- Usar modelo más pequeño (1B en vez de 1.5B)
 - Aumentar RAM en plan de Leapcell
 
 ### Cold start muy lento
