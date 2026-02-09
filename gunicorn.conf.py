@@ -9,7 +9,7 @@ workers = 1
 worker_class = "sync"
 
 # Timeout más corto ahora que el modelo es rápido
-timeout = 60  # 1 minuto (modelo 1.5B responde en 3-8s)
+timeout = 45  # modelo 0.5B responde en 1-3s (más rápido que 1.5B)
 graceful_timeout = 30
 keepalive = 5
 

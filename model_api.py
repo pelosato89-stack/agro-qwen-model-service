@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime
+import urllib.request
+import urllib.error
 
 from flask import Flask, jsonify, request
 from llama_cpp import Llama
@@ -13,14 +15,77 @@ app = Flask(__name__)
 # Configuración
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = os.getenv(
-    "LOCAL_MODEL_PATH", str(BASE_DIR / "models/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+    "LOCAL_MODEL_PATH", str(BASE_DIR / "models/qwen2.5-0.5b-instruct-q4_k_m.gguf")
 )
-N_CTX = int(os.getenv("N_CTX", "2048"))
+N_CTX = int(os.getenv("N_CTX", "1024"))
 N_THREADS = int(os.getenv("N_THREADS", "1"))
+MODEL_URL = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
 
 # Estado global
 _LLM = None
 _MODEL_ERROR = None
+
+
+def download_model_if_needed(model_path: str, model_url: str) -> bool:
+    """
+    Descarga el modelo automáticamente si no existe.
+    CRÍTICO para entornos serverless como Leapcell donde el filesystem es efímero.
+    
+    Args:
+        model_path: Ruta donde debe estar el modelo
+        model_url: URL de descarga del modelo
+        
+    Returns:
+        True si el modelo existe o se descargó exitosamente, False si falla
+    """
+    model_file = Path(model_path)
+    
+    # Si ya existe, no hacer nada
+    if model_file.exists():
+        print(f"✅ Modelo encontrado en: {model_path}")
+        return True
+    
+    print(f"⚠️  Modelo NO encontrado en: {model_path}")
+    print(f"⬇️  Iniciando descarga automática desde: {model_url}")
+    print(f"📦 Tamaño aproximado: ~400 MB")
+    
+    try:
+        # Crear directorio si no existe
+        model_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Descargar con urllib (no requiere dependencias extra)
+        print("🔄 Descargando... (esto puede tardar varios minutos)")
+        
+        # Descargar con progreso
+        last_percent = -1
+        def report_progress(block_num, block_size, total_size):
+            nonlocal last_percent
+            if total_size > 0:
+                downloaded = block_num * block_size
+                percent = min(100, (downloaded * 100) // total_size)
+                # Mostrar progreso cada 10%
+                if percent >= last_percent + 10:
+                    mb_downloaded = downloaded / (1024 * 1024)
+                    mb_total = total_size / (1024 * 1024)
+                    print(f"   {percent}% - {mb_downloaded:.1f}/{mb_total:.1f} MB")
+                    last_percent = percent
+        
+        urllib.request.urlretrieve(model_url, model_path, reporthook=report_progress)
+        
+        print(f"✅ Modelo descargado exitosamente en: {model_path}")
+        print(f"📊 Tamaño del archivo: {model_file.stat().st_size / (1024*1024):.1f} MB")
+        return True
+        
+    except urllib.error.URLError as e:
+        error_msg = f"❌ Error de red al descargar modelo: {str(e)}"
+        print(error_msg)
+        return False
+    except Exception as e:
+        error_msg = f"❌ Error inesperado al descargar modelo: {str(e)}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def load_model():
@@ -32,14 +97,14 @@ def load_model():
     print(f"📁 Ruta: {MODEL_PATH}")
     print("=" * 60)
     
-    # Verificar que existe
-    if not Path(MODEL_PATH).exists():
-        error_msg = f"❌ ERROR: Modelo NO encontrado en: {MODEL_PATH}"
+    # Intentar descargar si no existe (crítico para serverless)
+    if not download_model_if_needed(MODEL_PATH, MODEL_URL):
+        error_msg = f"❌ ERROR: No se pudo obtener el modelo en: {MODEL_PATH}"
         print(error_msg)
         _MODEL_ERROR = error_msg
         return False
     
-    print("✅ Archivo del modelo encontrado")
+    print("✅ Archivo del modelo disponible")
     
     # Intentar cargar
     try:
@@ -111,7 +176,10 @@ def health():
 
 @app.post("/chat")
 def chat():
-    """Endpoint principal - REQUIERE modelo o falla"""
+    """Endpoint principal - REQUIERE modelo o falla
+    
+    Con el modelo Qwen 0.5B, las respuestas son más rápidas (1-3 segundos típicamente).
+    """
     
     # Si hay error de modelo, retornar error inmediatamente
     if _MODEL_ERROR:
@@ -134,7 +202,7 @@ def chat():
         payload = request.get_json(force=True)
         system_prompt = payload.get("system", "Eres un asistente agrónomo.")
         context = payload.get("context", {})
-        max_tokens = int(payload.get("max_tokens", 300))
+        max_tokens = int(payload.get("max_tokens", 256))
         
         mensaje = context.get("mensaje", "")
         print(f"📨 Request: {mensaje[:100]}...")
