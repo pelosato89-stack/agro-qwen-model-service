@@ -56,15 +56,19 @@ def download_model_if_needed(model_path: str, model_url: str) -> bool:
         # Descargar con urllib (no requiere dependencias extra)
         print("🔄 Descargando... (esto puede tardar varios minutos)")
         
-        # Descargar con progreso básico
+        # Descargar con progreso
+        last_percent = -1
         def report_progress(block_num, block_size, total_size):
+            nonlocal last_percent
             if total_size > 0:
                 downloaded = block_num * block_size
                 percent = min(100, (downloaded * 100) // total_size)
-                if block_num % 100 == 0:  # Mostrar cada ~100 bloques
+                # Mostrar progreso cada 10%
+                if percent >= last_percent + 10:
                     mb_downloaded = downloaded / (1024 * 1024)
                     mb_total = total_size / (1024 * 1024)
                     print(f"   {percent}% - {mb_downloaded:.1f}/{mb_total:.1f} MB")
+                    last_percent = percent
         
         urllib.request.urlretrieve(model_url, model_path, reporthook=report_progress)
         
